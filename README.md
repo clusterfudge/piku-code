@@ -11,7 +11,7 @@ Piku restricts SSH access via `command=` in `authorized_keys`, which prevents VS
 ### 1. Install on your piku server
 
 ```bash
-ssh piku@myserver 'curl -sL https://raw.githubusercontent.com/OWNER/piku-code/main/install.sh | sh'
+ssh piku@myserver 'curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/install.sh | sh'
 ```
 
 This installs:
@@ -23,7 +23,7 @@ This installs:
 Download the client script:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OWNER/piku-code/main/piku-client.sh > ~/.local/bin/piku-code
+curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client.sh > ~/.local/bin/piku-code
 chmod +x ~/.local/bin/piku-code
 ```
 

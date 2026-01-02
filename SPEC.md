@@ -83,7 +83,7 @@ piku-code/
 ### Server-side (run once per piku server)
 
 ```bash
-ssh piku@myserver 'curl -sL https://raw.githubusercontent.com/OWNER/piku-code/main/install.sh | sh'
+ssh piku@myserver 'curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/install.sh | sh'
 ```
 
 This installs:
@@ -96,7 +96,7 @@ Merge the contents of `piku-client.sh` into your local `piku` script.
 
 Or download the modified piku client:
 ```bash
-curl -sL https://raw.githubusercontent.com/OWNER/piku-code/main/piku > /usr/local/bin/piku
+curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku > /usr/local/bin/piku
 chmod +x /usr/local/bin/piku
 ```
 
