@@ -50,9 +50,9 @@ CODE_CLI="$BIN_DIR/code"
 # GitHub raw URL for plugin files
 GITHUB_RAW="https://raw.githubusercontent.com/clusterfudge/piku-code/main"
 
-# VS Code CLI download URLs
-# See: https://code.visualstudio.com/docs/editor/command-line#_standalone-cli
-VSCODE_CLI_BASE="https://code.visualstudio.com/sha/download"
+# VS Code CLI download URL
+# See: https://github.com/microsoft/vscode-remote-release/issues/9229
+VSCODE_CLI_BASE="https://update.code.visualstudio.com/latest"
 
 detect_arch() {
     arch=$(uname -m)
@@ -96,11 +96,16 @@ download_vscode_cli() {
     info "Detected platform: $os-$arch"
 
     # Construct download URL
-    # Format: https://code.visualstudio.com/sha/download?build=stable&os=cli-<os>-<arch>
-    cli_os="cli-${os}-${arch}"
-    download_url="${VSCODE_CLI_BASE}?build=stable&os=${cli_os}"
+    # Format: https://update.code.visualstudio.com/latest/cli-<os>-<arch>/stable
+    # Use alpine builds for Linux (statically linked, more compatible)
+    if [ "$os" = "linux" ]; then
+        cli_platform="cli-alpine-${arch}"
+    else
+        cli_platform="cli-${os}-${arch}"
+    fi
+    download_url="${VSCODE_CLI_BASE}/${cli_platform}/stable"
 
-    info "Downloading VS Code CLI..."
+    info "Downloading VS Code CLI from $download_url ..."
 
     # Create temp directory
     tmp_dir=$(mktemp -d)
