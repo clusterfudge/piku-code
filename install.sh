@@ -3,7 +3,7 @@
 # Install VS Code Tunnel integration for piku
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/OWNER/piku-code/main/install.sh | sh
+#   curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/install.sh | sh
 #
 # Or run locally:
 #   ./install.sh
@@ -47,8 +47,8 @@ PLUGIN_DIR="$PIKU_HOME/plugins/piku_code"
 BIN_DIR="$HOME/bin"
 CODE_CLI="$BIN_DIR/code"
 
-# GitHub raw URL for plugin files (update OWNER before publishing)
-GITHUB_RAW="https://raw.githubusercontent.com/OWNER/piku-code/main"
+# GitHub raw URL for plugin files
+GITHUB_RAW="https://raw.githubusercontent.com/clusterfudge/piku-code/main"
 
 # VS Code CLI download URLs
 # See: https://code.visualstudio.com/docs/editor/command-line#_standalone-cli
