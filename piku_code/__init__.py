@@ -12,7 +12,6 @@ import signal
 import subprocess
 import sys
 import hashlib
-import time
 from pathlib import Path
 
 import click
@@ -33,6 +32,16 @@ def debug(msg: str) -> None:
     """Print debug message if debug mode is enabled."""
     if DEBUG:
         click.echo(f"[DEBUG] {msg}", err=True)
+
+
+def echo_error(msg: str) -> None:
+    """Print an error message to stderr."""
+    click.echo(f"-----> Error: {msg}", err=True)
+
+
+def echo_info(msg: str) -> None:
+    """Print an info message."""
+    click.echo(f"-----> {msg}")
 
 
 def get_app_data_dir(app: str) -> Path:
@@ -89,9 +98,11 @@ def get_tunnel_pid(app: str) -> int | None:
             pid = int(pid_file.read_text().strip())
             # Check if process is actually running
             os.kill(pid, 0)
+            debug(f"Tunnel process {pid} is running")
             return pid
-        except (ValueError, OSError):
+        except (ValueError, OSError) as e:
             # PID file exists but process is not running
+            debug(f"PID file exists but process not running: {e}")
             pid_file.unlink(missing_ok=True)
     return None
 
@@ -119,7 +130,10 @@ def get_app_dir(app: str) -> Path:
 
 def check_code_cli() -> bool:
     """Check if VS Code CLI is installed."""
-    return Path(CODE_CLI).exists() and os.access(CODE_CLI, os.X_OK)
+    exists = Path(CODE_CLI).exists()
+    executable = os.access(CODE_CLI, os.X_OK) if exists else False
+    debug(f"CODE_CLI={CODE_CLI} exists={exists} executable={executable}")
+    return exists and executable
 
 
 @click.group()
@@ -139,13 +153,15 @@ def cmd_start(app: str, name: str | None) -> None:
     """
     # Check if app exists
     if not app_exists(app):
-        click.echo(f"-----> Error: App '{app}' does not exist", err=True)
+        echo_error(f"App '{app}' does not exist")
+        click.echo(f"       Available apps: {', '.join(os.listdir(PIKU_APPS)) if os.path.exists(PIKU_APPS) else 'none'}", err=True)
         sys.exit(1)
 
     # Check if VS Code CLI is installed
     if not check_code_cli():
-        click.echo(f"-----> Error: VS Code CLI not found at {CODE_CLI}", err=True)
-        click.echo("       Run the piku-code installer first.", err=True)
+        echo_error(f"VS Code CLI not found at {CODE_CLI}")
+        click.echo("       Run the piku-code installer first:", err=True)
+        click.echo("       curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/install.sh | sh", err=True)
         sys.exit(1)
 
     # Check if tunnel is already running
@@ -153,7 +169,7 @@ def cmd_start(app: str, name: str | None) -> None:
     if existing_pid:
         existing_name = get_tunnel_name(app)
         if existing_name:
-            click.echo(f"-----> Tunnel already running (PID {existing_pid})")
+            echo_info(f"Tunnel already running (PID {existing_pid})")
             click.echo(existing_name)
             return
 
@@ -163,117 +179,84 @@ def cmd_start(app: str, name: str | None) -> None:
     else:
         tunnel_name = get_tunnel_name(app) or generate_tunnel_name(app)
 
-    click.echo(f"-----> Starting VS Code tunnel '{tunnel_name}'...")
+    echo_info(f"Starting VS Code tunnel '{tunnel_name}'...")
 
     # Get app directory for the tunnel
     app_dir = get_app_dir(app)
     log_file = get_log_file(app)
 
-    # Start the tunnel process
-    # We run it in a way that handles device auth interactively
-    try:
-        # First, try to start non-interactively to check if auth is needed
-        debug(f"Starting tunnel with command: {CODE_CLI} tunnel --name {tunnel_name}")
+    # Build the command
+    cmd = [CODE_CLI, "tunnel", "--accept-server-license-terms", "--name", tunnel_name]
+    debug(f"Running command: {' '.join(cmd)}")
+    debug(f"Working directory: {app_dir}")
+    debug(f"Log file: {log_file}")
 
-        # Open log file for output
+    # Start the tunnel process as a daemon
+    # We use nohup-style approach: redirect to log file and detach
+    try:
         with open(log_file, "w") as log:
             process = subprocess.Popen(
-                [CODE_CLI, "tunnel", "--accept-server-license-terms", "--name", tunnel_name],
+                cmd,
                 cwd=str(app_dir),
-                stdout=subprocess.PIPE,
+                stdout=log,
                 stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
-                text=True,
-                bufsize=1,
+                start_new_session=True,  # Detach from terminal
             )
 
-        # Read output to detect auth requirement or successful start
-        auth_required = False
-        tunnel_ready = False
-        auth_url = None
-        auth_code = None
+        # Save PID and name immediately
+        save_tunnel_pid(app, process.pid)
+        save_tunnel_name(app, tunnel_name)
 
-        # Set a timeout for initial startup
-        start_time = time.time()
-        timeout = 60  # 60 seconds for auth/startup
+        echo_info(f"Tunnel started (PID {process.pid})")
+        echo_info(f"Log file: {log_file}")
 
-        while time.time() - start_time < timeout:
-            if process.poll() is not None:
-                # Process exited
-                break
+        # Check if process is still running after a brief moment
+        import time
+        time.sleep(1)
 
-            # Read a line (with timeout via select would be better, but this works)
-            try:
-                line = process.stdout.readline()
-                if not line:
-                    time.sleep(0.1)
-                    continue
-
-                line = line.strip()
-                debug(f"Output: {line}")
-
-                # Log to file
-                with open(log_file, "a") as log:
-                    log.write(line + "\n")
-
-                # Check for authentication requirement
-                if "github.com/login/device" in line.lower() or "microsoft.com/devicelogin" in line.lower():
-                    auth_required = True
-                    auth_url = line
-                    click.echo("")
-                    click.echo("-----> Authentication required!")
-                    click.echo("       Open this URL in your browser:")
-                    click.echo(f"       {line}")
-
-                # Check for device code
-                if auth_required and ("code:" in line.lower() or "enter" in line.lower()):
-                    auth_code = line
-                    click.echo(f"       {line}")
-                    click.echo("")
-
-                # Check for successful tunnel start
-                if "ready" in line.lower() or "connected" in line.lower() or "tunnel" in line.lower():
-                    # Look for signs the tunnel is running
-                    if "listening" in line.lower() or "ready" in line.lower():
-                        tunnel_ready = True
-                        if auth_required:
-                            click.echo("-----> Authenticated successfully!")
-                        click.echo("-----> Tunnel ready!")
-                        break
-
-                # Check for tunnel name confirmation
-                if tunnel_name in line:
-                    tunnel_ready = True
-                    click.echo("-----> Tunnel ready!")
-                    break
-
-            except Exception as e:
-                debug(f"Error reading output: {e}")
-                time.sleep(0.1)
-
-        # Check if process is still running (which is good - tunnel should stay up)
-        if process.poll() is None:
-            # Tunnel is running, save the PID and name
-            save_tunnel_pid(app, process.pid)
-            save_tunnel_name(app, tunnel_name)
-            click.echo(tunnel_name)
-        else:
-            # Process exited - check why
+        if process.poll() is not None:
+            # Process exited immediately - something went wrong
             exit_code = process.returncode
-            click.echo(f"-----> Error: Tunnel process exited with code {exit_code}", err=True)
+            echo_error(f"Tunnel process exited immediately with code {exit_code}")
 
-            # Read any remaining output
-            remaining = process.stdout.read()
-            if remaining:
-                click.echo(remaining, err=True)
+            # Show log contents
+            if log_file.exists():
+                log_contents = log_file.read_text()
+                if log_contents.strip():
+                    click.echo("       Log output:", err=True)
+                    for line in log_contents.strip().split('\n')[:20]:
+                        click.echo(f"       {line}", err=True)
 
+            clear_tunnel_pid(app)
             sys.exit(1)
 
+        # Check if auth is needed by reading log
+        if log_file.exists():
+            log_contents = log_file.read_text()
+            if "github.com/login/device" in log_contents.lower() or "microsoft.com/devicelogin" in log_contents.lower():
+                echo_info("Authentication may be required!")
+                click.echo("       Check the log file for auth URL:", err=True)
+                click.echo(f"       cat {log_file}", err=True)
+                # Print relevant lines
+                for line in log_contents.split('\n'):
+                    if 'http' in line.lower() or 'code' in line.lower():
+                        click.echo(f"       {line}")
+
+        echo_info("Tunnel ready!")
+        click.echo(tunnel_name)
+
     except FileNotFoundError:
-        click.echo(f"-----> Error: VS Code CLI not found at {CODE_CLI}", err=True)
+        echo_error(f"VS Code CLI not found at {CODE_CLI}")
+        sys.exit(1)
+    except PermissionError as e:
+        echo_error(f"Permission denied: {e}")
         sys.exit(1)
     except Exception as e:
-        click.echo(f"-----> Error starting tunnel: {e}", err=True)
+        echo_error(f"Failed to start tunnel: {e}")
+        debug(f"Exception type: {type(e).__name__}")
+        import traceback
+        debug(traceback.format_exc())
         sys.exit(1)
 
 
@@ -284,14 +267,14 @@ def cmd_stop(app: str) -> None:
     pid = get_tunnel_pid(app)
 
     if not pid:
-        click.echo(f"-----> No tunnel running for '{app}'")
+        echo_info(f"No tunnel running for '{app}'")
         return
 
     try:
         os.kill(pid, signal.SIGTERM)
-        click.echo(f"-----> Tunnel stopped (was PID {pid})")
+        echo_info(f"Tunnel stopped (was PID {pid})")
     except OSError as e:
-        click.echo(f"-----> Error stopping tunnel: {e}", err=True)
+        echo_error(f"Failed to stop tunnel: {e}")
     finally:
         clear_tunnel_pid(app)
 
@@ -304,17 +287,22 @@ def cmd_status(app: str) -> None:
     Returns the tunnel name and exits 0 if running.
     Exits 1 if not running.
     """
+    # Check if app exists
+    if not app_exists(app):
+        echo_error(f"App '{app}' does not exist")
+        sys.exit(1)
+
     pid = get_tunnel_pid(app)
     name = get_tunnel_name(app)
 
     if pid and name:
-        click.echo(f"-----> Tunnel running (PID {pid})")
+        echo_info(f"Tunnel running (PID {pid})")
         click.echo(name)
     elif name:
-        click.echo(f"-----> Tunnel not running (was '{name}')")
+        echo_info(f"Tunnel not running (was '{name}')")
         sys.exit(1)
     else:
-        click.echo(f"-----> No tunnel configured for '{app}'")
+        echo_info(f"No tunnel configured for '{app}'")
         sys.exit(1)
 
 
@@ -326,13 +314,18 @@ def cmd_ensure(app: str) -> None:
     Non-interactive version - fails if tunnel is not already running.
     Use code-tunnel:start for interactive startup with auth support.
     """
+    # Check if app exists
+    if not app_exists(app):
+        echo_error(f"App '{app}' does not exist")
+        sys.exit(1)
+
     pid = get_tunnel_pid(app)
     name = get_tunnel_name(app)
 
     if pid and name:
         click.echo(name)
     else:
-        click.echo(f"-----> Error: No tunnel running for '{app}'", err=True)
+        echo_error(f"No tunnel running for '{app}'")
         click.echo("       Use 'code-tunnel:start' to start a tunnel.", err=True)
         sys.exit(1)
 
@@ -343,8 +336,13 @@ def cmd_name(app: str) -> None:
     """Get the tunnel name for an app (for scripting).
 
     Returns the configured tunnel name, whether or not the tunnel is running.
-    Exits 1 if no tunnel name is configured.
+    Generates a new name if none is configured.
     """
+    # Check if app exists
+    if not app_exists(app):
+        echo_error(f"App '{app}' does not exist")
+        sys.exit(1)
+
     name = get_tunnel_name(app)
 
     if name:
@@ -354,6 +352,34 @@ def cmd_name(app: str) -> None:
         name = generate_tunnel_name(app)
         save_tunnel_name(app, name)
         click.echo(name)
+
+
+@cli.command("code-tunnel:logs")
+@click.argument("app")
+@click.option("-f", "--follow", is_flag=True, help="Follow log output")
+@click.option("-n", "--lines", default=50, help="Number of lines to show")
+def cmd_logs(app: str, follow: bool, lines: int) -> None:
+    """Show tunnel logs for an app."""
+    # Check if app exists
+    if not app_exists(app):
+        echo_error(f"App '{app}' does not exist")
+        sys.exit(1)
+
+    log_file = get_log_file(app)
+
+    if not log_file.exists():
+        echo_info(f"No log file found for '{app}'")
+        return
+
+    if follow:
+        # Use tail -f
+        os.execvp("tail", ["tail", "-f", str(log_file)])
+    else:
+        # Show last N lines
+        content = log_file.read_text()
+        log_lines = content.strip().split('\n')
+        for line in log_lines[-lines:]:
+            click.echo(line)
 
 
 def cli_commands():
