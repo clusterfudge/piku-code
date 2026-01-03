@@ -20,14 +20,24 @@ This installs:
 
 ### 2. Set up your local machine
 
-Download the client script:
+**Option A: Standalone script** (works now)
 
 ```bash
 curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client.sh > ~/.local/bin/piku-code
 chmod +x ~/.local/bin/piku-code
 ```
 
-Or add the functions to your existing piku script.
+Then use `piku-code code` to connect.
+
+**Option B: Piku client plugin** (requires [upstream piku patch](UPSTREAM-PROPOSAL.md))
+
+```bash
+mkdir -p ~/.piku/client-plugins
+curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client-plugin.sh > ~/.piku/client-plugins/code
+chmod +x ~/.piku/client-plugins/code
+```
+
+Then use `piku code` directly.
 
 ### 3. Connect to your app
 
