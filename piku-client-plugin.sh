@@ -3,7 +3,7 @@
 #
 # This plugin is installed to ~/.piku/client-plugins/code and is invoked
 # by the piku client when running commands like:
-#   piku code
+#   piku code [path]
 #   piku code:stop
 #   piku code:status
 #
@@ -12,6 +12,11 @@
 #   $2 - app name (e.g., myapp)
 #   $3 - full command (e.g., code, code:stop)
 #   $@ - remaining arguments
+#
+# Usage:
+#   piku code              # Open app root directory
+#   piku code src          # Open app/src subdirectory
+#   piku code backend/api  # Open app/backend/api subdirectory
 
 set -e
 
@@ -45,8 +50,10 @@ run_ssh_interactive() {
     ssh -t -o StrictHostKeyChecking=accept-new "$SERVER" "$@"
 }
 
-# piku code - Open VS Code connected to the app
+# piku code [path] - Open VS Code connected to the app
 cmd_code() {
+    local subpath="${1:-}"
+
     local code_cmd
     code_cmd=$(detect_code_command)
     if [ -z "$code_cmd" ]; then
@@ -88,12 +95,21 @@ cmd_code() {
         exit 1
     fi
 
+    # Build the remote path
+    local remote_path="/home/piku/.piku/apps/$APP"
+    if [ -n "$subpath" ]; then
+        # Remove leading slash if present, normalize path
+        subpath="${subpath#/}"
+        remote_path="$remote_path/$subpath"
+    fi
+
     echo ""
     echo "Tunnel: $tunnel_name"
+    echo "Opening: $remote_path"
     echo "Connecting VS Code..."
 
     # Open VS Code connected to the tunnel
-    "$code_cmd" --remote "tunnel+$tunnel_name" "/home/piku/.piku/apps/$APP"
+    "$code_cmd" --remote "tunnel+$tunnel_name" "$remote_path"
 }
 
 # piku code:stop - Stop the tunnel

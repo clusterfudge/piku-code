@@ -108,10 +108,26 @@ piku_ssh_interactive() {
     ssh -t -o StrictHostKeyChecking=accept-new "$PIKU_SERVER" "$@"
 }
 
-# piku code - Open VS Code connected to a piku app
+# piku code [path] - Open VS Code connected to a piku app
+# Usage:
+#   piku-code code              # App from git remote, open root
+#   piku-code code src          # App from git remote, open src/
+#   piku-code code myapp        # Explicit app (if no git remote), open root
+#   piku-code code myapp src    # Explicit app, open src/
 cmd_code() {
     local app
-    app=$(get_app_name "$1") || return 1
+    local subpath=""
+
+    # Determine app and subpath based on whether PIKU_APP is set
+    if [ -n "$PIKU_APP" ]; then
+        # App detected from git remote - first arg is optional subpath
+        app="$PIKU_APP"
+        subpath="${1:-}"
+    else
+        # No git remote - first arg is app, second is optional subpath
+        app=$(get_app_name "$1") || return 1
+        subpath="${2:-}"
+    fi
 
     local code_cmd
     code_cmd=$(detect_code_command)
@@ -158,13 +174,21 @@ cmd_code() {
         return 1
     fi
 
+    # Build the remote path
+    local remote_path="/home/piku/.piku/apps/$app"
+    if [ -n "$subpath" ]; then
+        # Remove leading slash if present
+        subpath="${subpath#/}"
+        remote_path="$remote_path/$subpath"
+    fi
+
     echo ""
     echo "Tunnel: $tunnel_name"
+    echo "Opening: $remote_path"
     echo "Connecting VS Code..."
 
     # Open VS Code connected to the tunnel
-    # The path is the app directory on the server
-    "$code_cmd" --remote "tunnel+$tunnel_name" "/home/piku/.piku/apps/$app"
+    "$code_cmd" --remote "tunnel+$tunnel_name" "$remote_path"
 }
 
 # piku code:stop - Stop the VS Code tunnel
