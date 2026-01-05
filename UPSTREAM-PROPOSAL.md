@@ -1,5 +1,7 @@
 # Proposal: Client-Side Plugin Support for Piku
 
+> **Status: Implemented** - See [clusterfudge/piku branch claude/add-client-plugins-kZEcv](https://github.com/clusterfudge/piku/tree/claude/add-client-plugins-kZEcv)
+
 ## Problem
 
 The piku client currently has no extensibility mechanism. Server-side plugins can add new commands, but some operations require **both** server and local actions. For example:

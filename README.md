@@ -29,9 +29,14 @@ chmod +x ~/.local/bin/piku-code
 
 Then use `piku-code code` to connect.
 
-**Option B: Piku client plugin** (requires [upstream piku patch](UPSTREAM-PROPOSAL.md))
+**Option B: Piku client plugin** (requires [piku with client plugin support](https://github.com/clusterfudge/piku/tree/claude/add-client-plugins-kZEcv))
 
 ```bash
+# First, install piku client with plugin support
+curl -sL https://raw.githubusercontent.com/clusterfudge/piku/claude/add-client-plugins-kZEcv/piku > ~/.local/bin/piku
+chmod +x ~/.local/bin/piku
+
+# Then install the code plugin
 mkdir -p ~/.piku/client-plugins
 curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client-plugin.sh > ~/.piku/client-plugins/code
 chmod +x ~/.piku/client-plugins/code
