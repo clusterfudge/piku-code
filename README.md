@@ -20,29 +20,18 @@ This installs:
 
 ### 2. Set up your local machine
 
-**Option A: Standalone script** (works now)
+Install the piku client with plugin support and the code plugin:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client.sh > ~/.local/bin/piku-code
-chmod +x ~/.local/bin/piku-code
-```
-
-Then use `piku-code code` to connect.
-
-**Option B: Piku client plugin** (requires [piku with client plugin support](https://github.com/clusterfudge/piku/tree/claude/add-client-plugins-kZEcv))
-
-```bash
-# First, install piku client with plugin support
+# Install piku client with plugin support
 curl -sL https://raw.githubusercontent.com/clusterfudge/piku/claude/add-client-plugins-kZEcv/piku > ~/.local/bin/piku
 chmod +x ~/.local/bin/piku
 
-# Then install the code plugin
+# Install the code plugin
 mkdir -p ~/.piku/client-plugins
 curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client-plugin.sh > ~/.piku/client-plugins/code
 chmod +x ~/.piku/client-plugins/code
 ```
-
-Then use `piku code` directly.
 
 ### 3. Connect to your app
 
@@ -51,14 +40,13 @@ The client automatically detects server and app from your git remote:
 ```bash
 # If you have a piku remote configured (git remote add piku piku@server:myapp)
 cd /path/to/your/app
-piku-code code
+piku code
+
+# Open a specific subdirectory
+piku code src/
 
 # Or specify a different remote
-piku-code -r production code
-
-# Or use environment variables as fallback
-export PIKU_SERVER=piku@myserver.com
-piku-code code myapp
+piku -r production code
 ```
 
 ## First-Time Authentication
@@ -66,22 +54,21 @@ piku-code code myapp
 The first time you start a tunnel, you'll need to authenticate with GitHub:
 
 ```
-$ piku-code code
+$ piku code
+Checking tunnel status for 'myapp' on piku@myserver...
 Starting VS Code tunnel (may require authentication)...
 
 -----> Starting VS Code tunnel 'piku-myapp-a1b2c3'...
-
------> Authentication required!
-       Open this URL in your browser:
+-----> Authentication may be required!
+       Check the log file for auth URL:
        https://github.com/login/device
-
        Enter code: ABCD-1234
 
------> Authenticated successfully!
 -----> Tunnel ready!
 piku-myapp-a1b2c3
 
 Tunnel: piku-myapp-a1b2c3
+Opening: /home/piku/.piku/apps/myapp
 Connecting VS Code...
 ```
 
@@ -93,10 +80,11 @@ After the first authentication, subsequent connections are instant.
 
 | Command | Description |
 |---------|-------------|
-| `piku-code code [app]` | Start tunnel if needed, open VS Code |
-| `piku-code code:stop [app]` | Stop the tunnel |
-| `piku-code code:status [app]` | Check tunnel status |
-| `piku-code -r <remote> ...` | Use a specific git remote |
+| `piku code [path]` | Start tunnel if needed, open VS Code |
+| `piku code:stop` | Stop the tunnel |
+| `piku code:status` | Check tunnel status |
+| `piku code:logs` | View tunnel logs |
+| `piku -r <remote> code` | Use a specific git remote |
 
 ### Server-side (piku server)
 
@@ -115,9 +103,9 @@ After the first authentication, subsequent connections are instant.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PIKU_SERVER` | SSH connection to piku | `piku@localhost` |
-| `PIKU_APP` | Default app name | (none) |
-| `PIKU_CODE_DEBUG` | Enable debug output | `0` |
+| `PIKU_CODE_DEBUG` | Enable debug output on server | `0` |
+
+The piku client automatically detects server and app from your git remote. See `piku --help` for client configuration options.
 
 ### Tunnel Names
 
@@ -133,9 +121,14 @@ ssh piku@myserver code-tunnel:start myapp my-custom-tunnel-name
 ┌─────────────────────────────────────────────────────────────────┐
 │ YOUR MACHINE                                                    │
 │                                                                 │
-│  $ piku code myapp                                              │
+│  $ piku code                                                    │
 │       │                                                         │
-│       ├──► SSH to piku server: code-tunnel:start myapp          │
+│       ├──► piku client detects app from git remote              │
+│       │                                                         │
+│       ├──► SSH to piku server: code-tunnel:ensure myapp         │
+│       │         └──► Returns tunnel name if running             │
+│       │                                                         │
+│       ├──► (if not running) SSH: code-tunnel:start myapp        │
 │       │         └──► Starts VS Code tunnel daemon               │
 │       │         └──► Returns tunnel name                        │
 │       │                                                         │
@@ -231,6 +224,7 @@ PIKU_CODE_DEBUG=1 piku code-tunnel:start myapp
 - Python 3.9+ with Click
 
 ### Client
+- [Piku client with plugin support](https://github.com/clusterfudge/piku/tree/claude/add-client-plugins-kZEcv)
 - VS Code installed with `code` command available
 - SSH access to piku server
 - Bash shell
