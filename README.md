@@ -20,26 +20,45 @@ This installs:
 
 ### 2. Set up your local machine
 
-Download the client script:
+**Option A: Standalone script** (works now)
 
 ```bash
 curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client.sh > ~/.local/bin/piku-code
 chmod +x ~/.local/bin/piku-code
 ```
 
-Or add the functions to your existing piku script.
+Then use `piku-code code` to connect.
+
+**Option B: Piku client plugin** (requires [piku with client plugin support](https://github.com/clusterfudge/piku/tree/claude/add-client-plugins-kZEcv))
+
+```bash
+# First, install piku client with plugin support
+curl -sL https://raw.githubusercontent.com/clusterfudge/piku/claude/add-client-plugins-kZEcv/piku > ~/.local/bin/piku
+chmod +x ~/.local/bin/piku
+
+# Then install the code plugin
+mkdir -p ~/.piku/client-plugins
+curl -sL https://raw.githubusercontent.com/clusterfudge/piku-code/main/piku-client-plugin.sh > ~/.piku/client-plugins/code
+chmod +x ~/.piku/client-plugins/code
+```
+
+Then use `piku code` directly.
 
 ### 3. Connect to your app
 
-```bash
-export PIKU_SERVER=piku@myserver.com
-export PIKU_APP=myapp
+The client automatically detects server and app from your git remote:
 
-# Option A: Using the standalone script
+```bash
+# If you have a piku remote configured (git remote add piku piku@server:myapp)
+cd /path/to/your/app
 piku-code code
 
-# Option B: If integrated into piku script
-piku code
+# Or specify a different remote
+piku-code -r production code
+
+# Or use environment variables as fallback
+export PIKU_SERVER=piku@myserver.com
+piku-code code myapp
 ```
 
 ## First-Time Authentication
@@ -74,9 +93,10 @@ After the first authentication, subsequent connections are instant.
 
 | Command | Description |
 |---------|-------------|
-| `piku code [app]` | Start tunnel if needed, open VS Code |
-| `piku code:stop [app]` | Stop the tunnel |
-| `piku code:status [app]` | Check tunnel status |
+| `piku-code code [app]` | Start tunnel if needed, open VS Code |
+| `piku-code code:stop [app]` | Stop the tunnel |
+| `piku-code code:status [app]` | Check tunnel status |
+| `piku-code -r <remote> ...` | Use a specific git remote |
 
 ### Server-side (piku server)
 
@@ -85,7 +105,9 @@ After the first authentication, subsequent connections are instant.
 | `piku code-tunnel:start <app>` | Start a tunnel for an app |
 | `piku code-tunnel:stop <app>` | Stop the tunnel |
 | `piku code-tunnel:status <app>` | Check if tunnel is running |
+| `piku code-tunnel:ensure <app>` | Return tunnel name if running, else error |
 | `piku code-tunnel:name <app>` | Get the tunnel name |
+| `piku code-tunnel:logs <app>` | View tunnel logs |
 
 ## Configuration
 
@@ -136,7 +158,9 @@ The installer didn't complete. Run it again or manually install:
 ```bash
 # On the piku server
 cd ~/bin
-curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-linux-x64" | tar -xz
+curl -fsSL "https://update.code.visualstudio.com/latest/cli-alpine-x64/stable" -o code.tar.gz
+tar -xzf code.tar.gz
+rm code.tar.gz
 chmod +x code
 ```
 
@@ -146,6 +170,12 @@ Check if the tunnel process died:
 
 ```bash
 ssh piku@myserver code-tunnel:status myapp
+```
+
+View the tunnel logs:
+
+```bash
+ssh piku@myserver code-tunnel:logs myapp
 ```
 
 Restart it:
